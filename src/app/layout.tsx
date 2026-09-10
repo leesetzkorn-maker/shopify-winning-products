@@ -1,0 +1,23 @@
+import type { Metadata } from 'next';
+import Script from 'next/script';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Winning Products Intelligence',
+  description: 'Evidence-first product opportunity intelligence for Shopify merchants, built for South Africa.',
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en-ZA">
+      <body>
+        <Script
+          src="https://cdn.shopify.com/shopifycloud/app-bridge.js"
+          data-api-key={process.env.NEXT_PUBLIC_SHOPIFY_API_KEY ?? ''}
+          strategy="beforeInteractive"
+        />
+        {children}
+      </body>
+    </html>
+  );
+}
