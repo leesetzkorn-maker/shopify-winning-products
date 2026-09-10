@@ -1,10 +1,17 @@
 export interface OpportunityInputs {
+  /** Higher = stronger observed demand. */
   demand: number;
+  /** Higher = stronger recent acceleration/trend momentum. */
   momentum: number;
-  competition: number;
+  /** Higher = less saturated / easier to compete in. */
+  competitionOpportunity: number;
+  /** Higher = better estimated gross-margin potential. */
   marginPotential: number;
-  shippingFriction: number;
+  /** Higher = easier, faster, and more reliable fulfilment. */
+  shippingEase: number;
+  /** Higher = more favourable current timing. */
   seasonality: number;
+  /** Higher = stronger fit for the target market. */
   marketFit: number;
 }
 
@@ -14,23 +21,32 @@ export type OpportunityTier =
   | 'NEEDS_VALIDATION'
   | 'HIGH_RISK';
 
+export interface ScoreBreakdownItem {
+  key: keyof OpportunityInputs;
+  input: number;
+  weight: number;
+  contribution: number;
+}
+
 export interface OpportunityScore {
   score: number;
   tier: OpportunityTier;
   reasons: string[];
+  breakdown: ScoreBreakdownItem[];
 }
 
 const WEIGHTS: Record<keyof OpportunityInputs, number> = {
   demand: 0.25,
   momentum: 0.15,
-  competition: 0.15,
+  competitionOpportunity: 0.15,
   marginPotential: 0.20,
-  shippingFriction: 0.10,
+  shippingEase: 0.10,
   seasonality: 0.05,
   marketFit: 0.10,
 };
 
 function clamp(value: number): number {
+  if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, value));
 }
 
@@ -44,23 +60,29 @@ function tierFor(score: number): OpportunityTier {
 export function calculateOpportunityScore(
   inputs: OpportunityInputs,
 ): OpportunityScore {
+  const keys = Object.keys(WEIGHTS) as Array<keyof OpportunityInputs>;
   const normalized = Object.fromEntries(
-    Object.entries(inputs).map(([key, value]) => [key, clamp(value)]),
+    keys.map((key) => [key, clamp(inputs[key])]),
   ) as OpportunityInputs;
 
-  const weightedScore = (Object.keys(WEIGHTS) as Array<keyof OpportunityInputs>)
-    .reduce((total, key) => total + normalized[key] * WEIGHTS[key], 0);
+  const breakdown = keys.map((key) => ({
+    key,
+    input: normalized[key],
+    weight: WEIGHTS[key],
+    contribution: Math.round(normalized[key] * WEIGHTS[key] * 100) / 100,
+  }));
 
-  const score = Math.round(weightedScore * 100) / 100;
+  const score = Math.round(
+    breakdown.reduce((total, item) => total + item.contribution, 0) * 100,
+  ) / 100;
+
   const reasons: string[] = [];
-
   if (normalized.demand >= 75) reasons.push('Strong demand signal');
   if (normalized.momentum >= 75) reasons.push('Positive momentum');
-  if (normalized.competition <= 35) reasons.push('Relatively low competition');
+  if (normalized.competitionOpportunity >= 65) reasons.push('Favourable competition profile');
   if (normalized.marginPotential >= 75) reasons.push('Strong margin potential');
-  if (normalized.shippingFriction <= 35) reasons.push('Low shipping friction');
-  if (normalized.marketFit >= 75) reasons.push('Strong market fit');
-
+  if (normalized.shippingEase >= 65) reasons.push('Low fulfilment friction');
+  if (normalized.marketFit >= 75) reasons.push('Strong target-market fit');
   if (reasons.length === 0) {
     reasons.push('Evidence is mixed; validate before investing heavily');
   }
@@ -69,5 +91,6 @@ export function calculateOpportunityScore(
     score,
     tier: tierFor(score),
     reasons,
+    breakdown,
   };
 }
